@@ -10,7 +10,7 @@ use crate::sql::paths::ID;
 use crate::sql::statements::select::SelectStatement;
 use crate::sql::value::{Value, Values};
 use async_recursion::async_recursion;
-use futures::future::try_join_all;
+use futures::stream::{self, StreamExt};
 
 impl Value {
 	#[cfg_attr(feature = "parallel", async_recursion)]
@@ -43,7 +43,7 @@ impl Value {
 					Part::All => {
 						let path = path.next();
 						let futs = v.iter().map(|v| v.get(ctx, opt, txn, path));
-						try_join_all(futs).await.map(Into::into)
+						stream::iter(futs).buffered(10).await.map(Into::into)
 					}
 					Part::First => match v.first() {
 						Some(v) => v.get(ctx, opt, txn, path.next()).await,
